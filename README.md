@@ -110,7 +110,7 @@ Folder:
 2_User_and_Moral_Profile/
 ```
 
-This folder prepares the user-level behavioural inputs used by the social-routing choice model.
+This folder contains the processed user-level behavioural inputs used by the social-routing choice model.
 
 Main scripts:
 
@@ -120,25 +120,31 @@ Main scripts:
 check_profiles.py
 ```
 
-Main input and output files:
+Processed input files included in this repository:
 
 ```text
-Szep_etal_2022_MFQsurvey_data.csv
 moral_profile.csv
 moral_profile.pickle
 user_profile_2h.pickle
 user_profile_4h.pickle
 ```
 
-Suggested order:
+The files `user_profile_2h.pickle` and `user_profile_4h.pickle` are the processed user-profile files used by the main Lyon simulations. Therefore, the main simulation pipeline can be run without redistributing the original survey dataset.
+
+The original survey data file used to construct the processed moral-profile inputs is not included in this repository:
+
+```text
+Szep_etal_2022_MFQsurvey_data.csv
+```
+
+The script `1_giveandtake_extract_moralprofile.py` is included for transparency, but it can only be rerun if the original survey data are obtained separately and placed in this folder. If using the processed profile files included in this repository, users can skip this raw-data extraction step.
+
+To regenerate the user-profile pickle files from the processed moral-profile input, run:
 
 ```bash
 cd 2_User_and_Moral_Profile
-python 1_giveandtake_extract_moralprofile.py
 python 2_User_profile_generation.py
 ```
-
-The first script extracts the moral-profile variables used in the behavioural model. The second script generates the user profiles used in the Lyon simulations and saves them in pickle format.
 
 The generated profiles can be inspected with:
 
@@ -413,17 +419,17 @@ This repository is intended to provide the source code and lightweight supportin
 
 Large generated outputs, local Python environments, cached files, and machine-specific files are not included. These files should be generated locally by running the scripts described above.
 
-Some required inputs may be subject to redistribution restrictions, including the Lyon/SymuVia network inputs, SymuFlow binary or library files, and survey data used for moral-profile generation. Where such files are not included, users should obtain them from the original source and place them in the folder structure described in this README.
+Some required inputs may be subject to redistribution restrictions, including SymuFlow binary or library files and the original survey data used to construct the moral-profile inputs. The raw survey file `Szep_etal_2022_MFQsurvey_data.csv` is not redistributed in this repository. Processed moral-profile and user-profile files are included so that the main simulation pipeline can be run without the raw survey dataset. Where restricted files are not included, users should obtain them from the original source and place them in the folder structure described in this README.
 
 ## Data and extracted outputs
 
 The extracted simulation outputs used to generate the paper figures are not stored directly in this Git repository because of their file size.
 
-The extracted outputs are archived separately on 4TU.ResearchData:
+The extracted outputs and generated graph files are archived separately on 4TU.ResearchData:
 
 [10.4121/f262a974-407e-4e39-b031-7fd0901529c7](https://doi.org/10.4121/f262a974-407e-4e39-b031-7fd0901529c7)
 
-The 4TU archive contains:
+The 4TU archive contains the extracted simulation-output archive:
 
 ```text
 extracted_all_sim4.zip
@@ -437,13 +443,15 @@ peruser_hist_all_sim4.csv
 peruser_all_sim4.csv
 ```
 
+The 4TU archive also contains the graph outputs generated from these extracted CSV files. These graph outputs are included for convenience, so that the figures can be inspected without rerunning the graph-generation script.
+
 After downloading and unzipping `extracted_all_sim4.zip`, place the extracted CSV files in:
 
 ```text
 Output/Simulations_<RUN_ID>/extracted_output/
 ```
 
-The paper figures can then be regenerated with:
+The graph outputs can then be regenerated with:
 
 ```bash
 cd 6_Graph_Generate
