@@ -1,0 +1,98 @@
+# ============================================================
+# System, editor, and cache files
+# ============================================================
+
+.DS_Store
+__MACOSX/
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+*.pyo
+.ipynb_checkpoints/
+
+
+# ============================================================
+# Python environments and local installs
+# ============================================================
+
+.env
+.venv/
+venv/
+env/
+env_symupy/env_symupy/
+symupy/
+
+
+# ============================================================
+# Logs and temporary files
+# ============================================================
+
+*.log
+*.out
+*.err
+logs/
+logs*/
+tmp/
+TEMP/
+temp/
+
+
+# ============================================================
+# Generated simulation outputs
+# ============================================================
+
+Output/
+outputs/
+Results/
+results/
+OUT/
+extracted_output/
+graphs/
+generated_graphs/
+
+
+# ============================================================
+# Extracted simulation outputs archived separately on 4TU
+# ============================================================
+
+macro_all_sim*.csv
+peruser_all_sim*.csv
+peruser_hist_all_sim*.csv
+extracted_all_sim*.zip
+
+
+# ============================================================
+# Large/generated binary outputs
+# ============================================================
+
+*.pickle
+*.pkl
+*.zip
+*.tar
+*.tar.gz
+*.gz
+
+
+# ============================================================
+# Local configuration and run metadata
+# ============================================================
+
+config.json
+local_config.json
+
+
+# ============================================================
+# Raw survey data not redistributed in this repository
+# ============================================================
+
+2_User_and_Moral_Profile/Szep_etal_2022_MFQsurvey_data.csv
+
+
+# ============================================================
+# SymuFlow/SymuVia local binaries or compiled libraries
+# ============================================================
+
+*.so
+*.dylib
+*.dll
