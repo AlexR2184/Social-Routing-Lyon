@@ -18,15 +18,15 @@ import zipfile
 import sys
 import time
 
-# Get the parent directory of the current script
-parent_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
+# Add the current script directory to Python path
+script_dir = os.path.dirname(os.path.abspath(__file__))
 
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
+if script_dir not in sys.path:
+    sys.path.append(script_dir)
 
-from Funcs import TripsExtraction_SocialRout_module_v3 as Tripextract
+from Funcs_samplesize import TripsExtraction_SocialRout_module_v3 as Tripextract
 
-from Funcs import day_iteration
+from Funcs_samplesize import day_iteration
 
 def generate_cycle_social_days(number_of_users, weeks_in_stack, shuffle_participation, select_social_day_list):
     """Generates cycle social days data structure."""
@@ -104,16 +104,15 @@ def extract_simulation_output_samplesize(iteration_cycle, number_stack_simulatio
 
         veh_outputs.append(veh_output)
 
-        if incomplete_trips_check > 0:  # Based on incomplete trips
-            problems_in_week = 1
-            print('Gridlock issue is detected')
+        if incomplete_trips_check > 0:
+            print(f'Gridlock issue detected on Day {iteration_day} - dropping only this day')
+        else:
+            total_user_experienced_time = veh_output['driver_travel_time'].sum()
+            day_count += 1
+            total_user_experienced_time_day[day_count] = total_user_experienced_time
+            print(f'day_count is {day_count}')
+
         if count == days_in_week:
-            if problems_in_week == 0:
-                for veh_output in veh_outputs:
-                    total_user_experienced_time = veh_output['driver_travel_time'].sum()
-                    day_count += 1
-                    total_user_experienced_time_day[day_count] = total_user_experienced_time
-                    print(f'day_count is {day_count}')
             veh_outputs = []
             count = 0
             problems_in_week = 0
@@ -125,8 +124,7 @@ def extract_simulation_output_samplesize(iteration_cycle, number_stack_simulatio
 def main():
     total_sample_size = 130 # 130 was used in the paper.
 
-    parallel_cores=40 # User should set to number of cores available for parallelisation. for base line only one is needed
-    # In main simulations: 40 is used to enable twice as many weeks of simulation to be generated at a time for selection of 20 day sample without gridlock issues.
+    parallel_cores=20 # User should set to number of cores available for parallelisation. for base line only one is needed
 
     sim_hours = 4 # change to 2 for testing 0630 to 0830, 4 for testing 0630 to 1030
 
@@ -178,16 +176,16 @@ def main():
 
     demand_4h_path = os.path.join(SymuVia_Lyon_Inputs_path, '4_hour_demand_profile')
 
-    network_input = os.path.join(demand_4h_path, 'L63V.xml')
-    demand_input_social = os.path.join(demand_4h_path, 'SR_routes.csv')
-    demand_input_init = os.path.join(demand_4h_path, 'UC_routes.csv')
+    network_input = os.path.join(demand_4h_path, 'L63V_4h.xml')
+    demand_input_social = os.path.join(demand_4h_path, 'SR_routes_4h.csv')
+    demand_input_init = os.path.join(demand_4h_path, 'UC_routes_4h.csv')
 
     if sim_hours == 2:
-        demand_1h_path = os.path.join(SymuVia_Lyon_Inputs_path, '1_hour_demand_profile')
+        demand_1h_path = os.path.join(SymuVia_Lyon_Inputs_path, '2_hour_demand_profile')
 
-        network_input = os.path.join(demand_1h_path, 'L63V_1h.xml')
-        demand_input_social = os.path.join(demand_1h_path, 'social_routes_1h.csv')
-        demand_input_init = os.path.join(demand_1h_path, 'init_routes_1h.csv')
+        network_input = os.path.join(demand_1h_path, 'L63V_2h.xml')
+        demand_input_social = os.path.join(demand_1h_path, 'social_routes_2h.csv')
+        demand_input_init = os.path.join(demand_1h_path, 'init_routes_2h.csv')
 
     # Demand and route option loading
     veh_social_1 = pd.read_csv(demand_input_social, sep=";")  # columns: origin;typeofvehicle;creation;path;destination
@@ -247,13 +245,13 @@ def main():
     # Note: this does not matter for the baselines as only one cycle is used.
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(script_dir, '..', '2_User_and_Moral_Profile', 'user_profile.pickle')
+    file_path = os.path.join(script_dir, '..', '2_User_and_Moral_Profile', 'user_profile_4h.pickle')
 
     with open(file_path, 'rb') as file:
         user_param_store, moral_user = pickle.load(file)
 
     if sim_hours == 2:
-        file_path = os.path.join(script_dir, '..', '2_User_and_Moral_Profile', 'user_profile_1h.pickle')
+        file_path = os.path.join(script_dir, '..', '2_User_and_Moral_Profile', 'user_profile_2h.pickle')
 
         with open(file_path, 'rb') as file:
             user_param_store, moral_user = pickle.load(file)
@@ -304,7 +302,9 @@ def main():
                                        days_in_week)
 
 
-        input_data = [(day, network_input, network_input_stem, demand[day], iteration_cycle, temp_folder,
+        lib_path = "/home/alexroocroft/.conda/envs/env_symupy/lib/"
+
+        input_data = [(day, network_input, network_input_stem, demand[day], iteration_cycle, lib_path,
                        symuvia_output, sim_hours) for day in range(1, 1 + number_stack_simulations)]
         if no_sim == 0:
             run_symuvia_simulation(iteration_cycle, input_data, parallel_cores, max_attempts)

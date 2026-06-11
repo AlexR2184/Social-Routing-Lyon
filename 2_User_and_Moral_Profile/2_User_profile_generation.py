@@ -3,6 +3,12 @@
 Created on 30/8/23
 
 @author: alexroocroft
+
+Updates:
+
+28/7/2024: Generate many alternative assignments of the moral dummys and choice model parameters for the users.
+            Then the simulations can be run for a selection of them (i.e. 10 repetitions) to control for the effect of
+            the random assignment of the moral dummys/ choice models parameters.
 """
 
 # For file input/output
@@ -24,8 +30,9 @@ from Funcs import Logit_model_v2 as user_choices
 # Cross-platform path handling
 current_dir = os.getcwd()
 
-
+#===================================================================================
 # -------For the 4 hr Lyon simulation ----------
+#===================================================================================
 
 # --- Load Moral survey data ----
 moral_input = os.path.join(current_dir, 'moral_profile.pickle')
@@ -40,60 +47,80 @@ SymuVia_Lyon_Inputs_path = os.path.abspath(SymuVia_Lyon_Inputs_path)
 
 demand_4h_path = os.path.join(SymuVia_Lyon_Inputs_path, '4_hour_demand_profile')
 
-demand_input_init = os.path.join(demand_4h_path, 'UC_routes.csv')
+demand_input_init = os.path.join(demand_4h_path, 'UC_routes_4h.csv')
 
 veh_init = pd.read_csv(demand_input_init, sep=";")  # columns: origin;typeofvehicle;creation;path;destination
 
 number_of_users = len(veh_init['id'])
 
-# --- Moral profile generation for the users ----
-user_combo = {}
-for user_id in range(number_of_users):
-    user_combo[user_id] = moral_probabilities.sample(n=1, weights=moral_probabilities).index[0]
-moral_user = {}
-for user_id in range(number_of_users):
-    moral_user[user_id] = combinations[['Care', 'Fairness', 'Ingroup', 'Authority', 'Purity']].loc[
-        user_combo[user_id]].to_dict()
+# =============== Profile generation for the users ==============
 
-# --- Logit coefficient profile ----
+# -------Loop to generate many sets of user profiles (moral, coeffs)------
+#Number of profiles
+no_profiles=5
+moral_user_stack={}
+user_param_store_stack={}
 
-user_param_S = user_choices.sacrifice_parameter_generation(number_of_users)
-user_param_CG = user_choices.CollectiveGood_parameter_generation(number_of_users)
-user_param_store ={'Sacrifice' :user_param_S ,'CollectiveGood' :user_param_CG}
+for profile in range(no_profiles):
+
+    #-----Create user_moral profile ---------
+    user_combo = {}
+    for user_id in range(number_of_users):
+        user_combo[user_id] = moral_probabilities.sample(n=1, weights=moral_probabilities).index[0]
+    moral_user = {}
+    for user_id in range(number_of_users):
+        moral_user[user_id] = combinations[['Care', 'Fairness', 'Ingroup', 'Authority', 'Purity']].loc[
+            user_combo[user_id]].to_dict()
+    moral_user_stack[profile] = moral_user
+    # --- Logit coefficient profile ----
+
+    user_param_S = user_choices.sacrifice_parameter_generation(number_of_users)
+    user_param_CG = user_choices.CollectiveGood_parameter_generation(number_of_users)
+    user_param_store ={'Sacrifice' :user_param_S ,'CollectiveGood' :user_param_CG}
+    user_param_store_stack[profile] = user_param_store
+
+with open('user_profile_4h.pickle', 'wb') as file:
+        pickle.dump((user_param_store_stack,moral_user_stack), file)
 
 
-with open('user_profile.pickle', 'wb') as file:
-        pickle.dump((user_param_store,moral_user), file)
-
-
-
-# -------For the 2 hr Lyon simulation (1 hr loading) ----------
+#===================================================================================
+# ====================For the 2 hr Lyon simulation (1 hr loading)================
+#===================================================================================
 
 # ----- Load data from SymuVia_Lyon_Inputs to obtain the number of user ------
 # Add another folder within SymuVia_Lyon_Inputs_path
-demand_1h_path = os.path.join(SymuVia_Lyon_Inputs_path, '1_hour_demand_profile')
+demand_1h_path = os.path.join(SymuVia_Lyon_Inputs_path, '2_hour_demand_profile')
 
-demand_input_init = os.path.join(demand_1h_path, 'init_routes_1h.csv')
+demand_input_init = os.path.join(demand_1h_path, 'UC_routes_2h.csv')
 
 veh_init = pd.read_csv(demand_input_init, sep=";")  # columns: origin;typeofvehicle;creation;path;destination
 
 number_of_users = len(veh_init['id'])
 
-#-----Create user_profile ---------
-user_combo = {}
-for user_id in range(number_of_users):
-    user_combo[user_id] = moral_probabilities.sample(n=1, weights=moral_probabilities).index[0]
-moral_user = {}
-for user_id in range(number_of_users):
-    moral_user[user_id] = combinations[['Care', 'Fairness', 'Ingroup', 'Authority', 'Purity']].loc[
-        user_combo[user_id]].to_dict()
+# -------Loop to generate many sets of user profiles (moral, coeffs)------
+#Number of profiles
+no_profiles=5
+moral_user_stack={}
+user_param_store_stack={}
 
-# --- Logit coefficient profile ----
+for profile in range(no_profiles):
 
-user_param_S = user_choices.sacrifice_parameter_generation(number_of_users)
-user_param_CG = user_choices.CollectiveGood_parameter_generation(number_of_users)
-user_param_store ={'Sacrifice' :user_param_S ,'CollectiveGood' :user_param_CG}
+    #-----Create user_moral profile ---------
+    user_combo = {}
+    for user_id in range(number_of_users):
+        user_combo[user_id] = moral_probabilities.sample(n=1, weights=moral_probabilities).index[0]
+    moral_user = {}
+    for user_id in range(number_of_users):
+        moral_user[user_id] = combinations[['Care', 'Fairness', 'Ingroup', 'Authority', 'Purity']].loc[
+            user_combo[user_id]].to_dict()
+    moral_user_stack[profile] = moral_user
+    # --- Logit coefficient profile ----
+
+    user_param_S = user_choices.sacrifice_parameter_generation(number_of_users)
+    user_param_CG = user_choices.CollectiveGood_parameter_generation(number_of_users)
+    user_param_store ={'Sacrifice' :user_param_S ,'CollectiveGood' :user_param_CG}
+    user_param_store_stack[profile] = user_param_store
 
 #save as the 1 hour user parameter store.
-with open('user_profile_1h.pickle', 'wb') as file:
-        pickle.dump((user_param_store,moral_user), file)
+with open('user_profile_2h.pickle', 'wb') as file:
+        pickle.dump((user_param_store_stack,moral_user_stack), file)
