@@ -6,6 +6,8 @@ Usage:
         --results-folder /scratch/alexroocroft/Output/Simulations_XXXXX \
         --sim-hours 4 \
         --save-folder graphs_v4
+
+v5 compared to v4. This changed summarise_band to make the bands min and max instead of 10/90 percentiles.
 """
 import os
 import json
@@ -174,9 +176,9 @@ def summarise_band(df_in, x_col, y_col):
     return (
         df_in.groupby(x_col)[y_col]
         .agg(
-            q10=lambda x: x.quantile(0.10),
+            q10="min",
             mean="mean",
-            q90=lambda x: x.quantile(0.90),
+            q90="max",
         )
         .reset_index()
         .sort_values(x_col)

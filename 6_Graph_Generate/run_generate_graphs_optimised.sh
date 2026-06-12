@@ -36,9 +36,9 @@ echo "Generating graphs for sim_hours=$SIM_HOURS"
 
 SCRIPT_DIR="/home/alexroocroft/GitHub_Version/6_Graph_Generate"
 
-srun python "$SCRIPT_DIR/generate_graphs_from_extractor_optimised_v4.py" \
+srun python "$SCRIPT_DIR/generate_graphs_from_extractor_optimised_v5.py" \
     --results-folder "$RESULTS_FOLDER" \
     --sim-hours "$SIM_HOURS" \
-    --save-folder "$RESULTS_FOLDER/graphs"
+    --save-folder "$RESULTS_FOLDER/graphs_minmax"
 
 conda deactivate

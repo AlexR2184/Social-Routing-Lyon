@@ -325,7 +325,7 @@ This folder generates the figures used in the paper from the extracted simulatio
 Active script:
 
 ```text
-generate_graphs_from_extractor_optimised_v4.py
+generate_graphs_from_extractor_optimised_v5.py
 ```
 
 Example Slurm shell script:
@@ -338,7 +338,7 @@ Example command:
 
 ```bash
 cd 6_Graph_Generate
-python generate_graphs_from_extractor_optimised_v4.py     --results-folder /path/to/Output/Simulations_<RUN_ID>     --sim-hours 4     --save-folder /path/to/Output/Simulations_<RUN_ID>/graphs
+python generate_graphs_from_extractor_optimised_v5.py     --results-folder /path/to/Output/Simulations_<RUN_ID>     --sim-hours 4     --save-folder /path/to/Output/Simulations_<RUN_ID>/graphs
 ```
 
 The script reads the CSV files created by `SocialRouting_results_extractor_optimised.py` and writes the analysis figures to the selected graph-output folder.
@@ -394,7 +394,7 @@ A typical reproduction workflow is:
 4. Optionally run the computational-viability analysis in `4_CalculatingSampleSize/`.
 5. Run the main long-horizon simulations using `5_Framework_Simulation/SocialRoutingSimulationFramework_Optimised.py`.
 6. Extract simulation results using `5_Framework_Simulation/SocialRouting_results_extractor_optimised.py`.
-7. Generate figures using `6_Graph_Generate/generate_graphs_from_extractor_optimised_v4.py`.
+7. Generate figures using `6_Graph_Generate/generate_graphs_from_extractor_optimised_v5.py`.
 
 ---
 
@@ -455,7 +455,7 @@ The graph outputs can then be regenerated with:
 
 ```bash
 cd 6_Graph_Generate
-python generate_graphs_from_extractor_optimised_v4.py \
+python generate_graphs_from_extractor_optimised_v5.py \
     --results-folder ../Output/Simulations_<RUN_ID> \
     --sim-hours 4 \
     --save-folder ../Output/Simulations_<RUN_ID>/graphs
