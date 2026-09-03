@@ -435,7 +435,7 @@ def run_simulation_framework(
         # ----------------- # ----------------- # ----------------- # -----------------
     no_sim = 0 # set to 1 to stop the simulation in SymuVia but keep the rest of the framework loop
 
-    parallel_cores=20 # standard is 15 for the paper simulation results
+    parallel_cores=20 # standard for the paper simulation results
 
     problem_day_limit = 0 # for the non-perfect week rerun logic
 
@@ -443,7 +443,7 @@ def run_simulation_framework(
 
     max_attempts = 5 # max number of attempts if there Symuvia returns a run error. Default is 5.
 
-    weeks_in_cycle = 3 # standard is 4 for the paper simulation results
+    weeks_in_cycle = 3 # standard for the paper simulation results
     days_in_week = 5 # each week has 5 days (i.e. work week)
 
 
@@ -570,7 +570,7 @@ def run_simulation_framework(
     participation_rate1 = 20
     social_days_number = 2
     additional_time_rel_tol = 0
-    rho = 0.4 # AR(1) memory persistence parameter (recommended baseline is 0.85)
+    rho = 0.4 # AR(1) memory persistence parameter
     profile_select = 0
     reconsideration_length = 2  # Set the number of cycles that reconsideration
 
