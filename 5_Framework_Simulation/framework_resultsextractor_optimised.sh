@@ -10,27 +10,37 @@
 #SBATCH --account=research-tpm-ess
 #SBATCH --array=1
 
-# Load modules and environment
+# Use the exact environment that runs the simulation.
+set -euo pipefail
 module load 2025
 module load openmpi
-module load miniconda3
+PYTHON=/home/alexroocroft/.conda/envs/env_symupy/bin/python
+if [ ! -x "$PYTHON" ]; then
+    echo "[ERROR] Python not found or not executable: $PYTHON" >&2
+    exit 1
+fi
+"$PYTHON" -c 'import numpy, pandas; print("[INFO] Python environment OK")'
 
-unset CONDA_SHLVL
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate env_symupy
-
-# Run the extractor
-# RUN_ID=8957007   # ← replace with the actual array job ID
-RUN_ID=9071258
-
+# Example:
+#   sbatch --export=ALL,RUN_ID=12345678 framework_resultsextractor_optimised.sh
+# Set SR_ROUTE_DAY_AGGREGATE_USERS=1 only if you want a potentially multi-GB
+# combined user-level CSV (each run already stores its own compressed CSVs).
+: "${RUN_ID:?Please export RUN_ID=<simulation SLURM array job ID> when submitting this extractor}"
 RESULTS_FOLDER="/scratch/alexroocroft/Output/Simulations_${RUN_ID}"
 SIM_HOURS=4
 
-echo "Running results extractor..."
-srun python SocialRouting_results_extractor_optimised.py \
-    --results-folder "$RESULTS_FOLDER" \
-    --sim-hours "$SIM_HOURS" \
-    --uc-prior-dir "/home/alexroocroft/GitHub_Version/3_Complete_SR_and_Baseline_UC" \
+ARGS=(
+    --results-folder "$RESULTS_FOLDER"
+    --sim-hours "$SIM_HOURS"
+    --uc-prior-dir "/home/alexroocroft/GitHub_Version/3_Complete_SR_and_Baseline_UC"
+    --route-day-mode required
+    --route-day-expected-cycles "${SR_ROUTE_DAY_EXPECTED_CYCLES:-20}"
     --zip
+)
+if [ "${SR_ROUTE_DAY_AGGREGATE_USERS:-0}" = "1" ]; then
+    ARGS+=(--route-day-include-users)
+fi
 
-conda deactivate
+echo "[INFO] Extracting all cases for SLURM run ID ${RUN_ID}"
+srun "$PYTHON" SocialRouting_results_extractor_optimised.py "${ARGS[@]}"
+

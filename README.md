@@ -228,6 +228,16 @@ Supporting functions are stored in:
 4_CalculatingSampleSize/Funcs_samplesize/
 ```
 
+### Fixed participation-rate validation
+
+`4_CalculatingSampleSize/FixedRateValidation130/` contains a separate sampling-validation experiment with fixed participation rates of 20%, 50% and 80%. It generates up to 130 successful daily simulation outcomes per scenario as a reference for evaluating estimates calculated from smaller samples, including 15 simulated days. The folder contains the simulation and analysis Python scripts, two Slurm scripts and experiment-specific instructions.
+
+### Daily sample-size sensitivity
+
+`4_CalculatingSampleSize/SamplingSensitivity15vs30/` contains a paired sensitivity experiment comparing 15 and 30 successful daily simulations per behavioural cycle. It covers the Sacrifice and Collective Good schemes, with three replications for each sample size and scheme, and supports trajectories of up to 20 cycles. It has its own simulation, analysis and Slurm scripts.
+
+Both validation workflows are independent of the main simulation array described in Section 5. Their supplied Slurm scripts were developed to run from the `5_Framework_Simulation/` working directory, where relative paths to the network inputs and shared `Funcs/` modules resolve. To run them on DelftBlue, follow their folder-specific instructions and stage the necessary scripts in that execution directory; their source files can remain organised under `4_CalculatingSampleSize/` in the repository.
+
 Outputs from this analysis are written to:
 
 ```text
@@ -292,11 +302,19 @@ cd 5_Framework_Simulation
 python SocialRoutingSimulationFramework_Optimised.py 1 Sacrifice 4 20
 ```
 
-The supplied Slurm script runs the simulation over scheme and case combinations:
+The supplied Slurm script runs **117 tasks** covering the Sacrifice and Collective Good experiment configurations and replications:
 
 ```bash
 sbatch framework_scheme_simulation_optimised_ALL.sh
 ```
+
+This includes the behavioural-parameter and promise-credibility sensitivity cases. In the Collective Good `cg_promise_ar1` case (tasks 115–117), promise violations are evaluated using AR(1)-smoothed perceived travel times; the other cases use their defined promise-evaluation settings. To run only that case:
+
+```bash
+sbatch --array=115-117 framework_scheme_simulation_optimised_ALL.sh
+```
+
+In addition to network-performance and participation metrics, the framework can record experienced travel times on uncoordinated (UC) and social-routing (SR) days. These are descriptive measurements; they do not replace the travel-time information used by the behavioural model. Participation summaries distinguish the state used to simulate a cycle from decisions made at the end of that cycle.
 
 Before use, edit the Slurm account, partition, conda environment, log paths, scratch/output paths, and SymuVia/SymuFlow library paths.
 
@@ -305,10 +323,29 @@ Before use, edit the Slurm account, partition, conda environment, log paths, scr
 After the simulations have completed, extract the outputs with:
 
 ```bash
-python SocialRouting_results_extractor_optimised.py     --results-folder /path/to/Output/Simulations_<RUN_ID>     --sim-hours 4     --uc-prior-dir ../3_Complete_SR_and_Baseline_UC     --zip
+python SocialRouting_results_extractor_optimised.py \
+    --results-folder /path/to/Output/Simulations_<RUN_ID> \
+    --sim-hours 4 \
+    --uc-prior-dir ../3_Complete_SR_and_Baseline_UC \
+    --route-day-mode auto \
+    --zip
 ```
 
-This creates an `extracted_output/` folder inside the selected results directory. The extracted outputs include macro-level and per-user CSV files used for the paper figures.
+This creates an `extracted_output/` folder inside the selected results directory. Its main outputs include macro-level and per-user CSV files used for the paper figures. When route-day outputs are present, the extractor also writes:
+
+```text
+route_day_cycle_by_rep_sim4.csv
+route_day_cycle_mean_across_reps_sim4.csv
+route_day_last_cycles_by_case_sim4.csv
+```
+
+Use `--route-day-mode required` to enforce route-day data availability for every expected run, or `--route-day-mode off` when extracting only the standard outputs. The Slurm extraction wrapper requires a simulation job ID:
+
+```bash
+sbatch --export=ALL,RUN_ID=<SIMULATION_JOB_ID> framework_resultsextractor_optimised.sh
+```
+
+The wrapper expects route-day outputs from a complete simulation array; it should not be used unchanged for partial or older runs without those files.
 
 ---
 
@@ -320,28 +357,41 @@ Folder:
 6_Graph_Generate/
 ```
 
-This folder generates the figures used in the paper from the extracted simulation outputs.
+This folder generates the paper figures from the extracted simulation results. The main entry point is:
 
-Active script:
+```text
+generate_all_graphs.py
+```
+
+It runs the two figure-generation scripts:
 
 ```text
 generate_graphs_from_extractor_optimised_v5.py
+generate_additional_graphs.py
 ```
 
-Example Slurm shell script:
+The first generates the main network-performance, participation and sensitivity figures. The second produces route-day travel-time comparisons and Collective Good promise-credibility figures. The supporting Slurm wrapper is `framework_graphgenerate.sh`.
 
-```text
-run_generate_graphs_optimised.sh
-```
-
-Example command:
+Run the results extractor first, then generate the complete set of figures from a **complete** set of extracted simulation outputs:
 
 ```bash
 cd 6_Graph_Generate
-python generate_graphs_from_extractor_optimised_v5.py     --results-folder /path/to/Output/Simulations_<RUN_ID>     --sim-hours 4     --save-folder /path/to/Output/Simulations_<RUN_ID>/graphs
+python generate_all_graphs.py \
+    --results-folder /path/to/Output/Simulations_<RUN_ID> \
+    --sim-hours 4 \
+    --mode all \
+    --save-folder graphs
 ```
 
-The script reads the CSV files created by `SocialRouting_results_extractor_optimised.py` and writes the analysis figures to the selected graph-output folder.
+The available modes are `all` (both figure scripts), `legacy` (the main paper-figure script) and `additional` (route-day and promise-credibility figures). For a subset of runs that does not include the full sensitivity experiment collection, use `--mode additional` rather than attempting to generate the complete figure set.
+
+On a Slurm cluster, submit the wrapper from `6_Graph_Generate/` after extraction, supplying the simulation job ID:
+
+```bash
+sbatch --export=ALL,RUN_ID=<SIMULATION_JOB_ID>,GRAPH_MODE=all framework_graphgenerate.sh
+```
+
+The wrapper's default `GRAPH_MODE` is `additional`; set `GRAPH_MODE=all` when the necessary full simulation and extracted results are available. Additional graph outputs are organised under `graphs/additional/route_days/` and `graphs/additional/promise_credibility/`.
 
 ---
 
@@ -391,10 +441,10 @@ A typical reproduction workflow is:
 1. Prepare the SymuVia Lyon inputs in `1_SymuVia_Lyon_Inputs/`.
 2. Generate the moral-profile and user-profile files in `2_User_and_Moral_Profile/`.
 3. Generate the complete-social-routing and full-uncoordinated-routing baselines using `3_Complete_SR_and_Baseline_UC/1_Generate_Baselines_parallel.py`.
-4. Optionally run the computational-viability analysis in `4_CalculatingSampleSize/`.
-5. Run the main long-horizon simulations using `5_Framework_Simulation/SocialRoutingSimulationFramework_Optimised.py`.
+4. Run the computational-viability analysis or independent fixed-rate and 15-versus-30-day validation workflows in `4_CalculatingSampleSize/` as required for the results being reproduced.
+5. Run the main long-horizon simulations using `5_Framework_Simulation/SocialRoutingSimulationFramework_Optimised.py` and its Slurm wrapper.
 6. Extract simulation results using `5_Framework_Simulation/SocialRouting_results_extractor_optimised.py`.
-7. Generate figures using `6_Graph_Generate/generate_graphs_from_extractor_optimised_v5.py`.
+7. Generate the complete figure set using `6_Graph_Generate/generate_all_graphs.py`, or select a plotting subset using its `--mode` option.
 
 ---
 
@@ -455,11 +505,14 @@ The graph outputs can then be regenerated with:
 
 ```bash
 cd 6_Graph_Generate
-python generate_graphs_from_extractor_optimised_v5.py \
+python generate_all_graphs.py \
     --results-folder ../Output/Simulations_<RUN_ID> \
     --sim-hours 4 \
-    --save-folder ../Output/Simulations_<RUN_ID>/graphs
+    --mode legacy \
+    --save-folder graphs
 ```
+
+For the complete figure set, use `--mode all` with the complete corresponding results and route-day outputs. The deposited archive described above contains the standard extracted outputs; verify that any additional experiment outputs needed for `--mode all` are included in the dataset version you download.
 
 ---
 

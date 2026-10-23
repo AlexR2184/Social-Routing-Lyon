@@ -1619,10 +1619,20 @@ def main():
     usecols.extend([c for c in MORAL_PROFILE_COLS if c in available_cols])
 
     BASELINE_CASE_LABEL = "baseline"
-    peruser_df = pd.read_csv(peruser_raw_csv, usecols=usecols + ["case_label"])
-    peruser_df = peruser_df[
-        peruser_df["case_label"] == BASELINE_CASE_LABEL
-    ].copy()
+    # Read only baseline rows into RAM. A complete 117-task experiment can
+    # produce a very large peruser_all CSV, whereas these v5 user-level figures
+    # use baseline cases only. The filtering is identical to the original v5.
+    baseline_chunks = []
+    for chunk in pd.read_csv(peruser_raw_csv,
+                             usecols=usecols + ["case_label"],
+                             chunksize=200_000):
+        keep = chunk.loc[chunk["case_label"] == BASELINE_CASE_LABEL]
+        if not keep.empty:
+            baseline_chunks.append(keep)
+    if not baseline_chunks:
+        raise ValueError("No baseline rows found in peruser_all CSV")
+    peruser_df = pd.concat(baseline_chunks, ignore_index=True)
+    del baseline_chunks
 
     print(
         peruser_df.groupby(["scheme", "case_label"]).size().sort_index()

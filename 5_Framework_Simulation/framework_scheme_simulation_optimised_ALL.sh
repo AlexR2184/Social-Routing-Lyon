@@ -8,16 +8,24 @@
 #SBATCH --mem-per-cpu=2G
 #SBATCH --partition=compute
 #SBATCH --account=research-tpm-ess
-#SBATCH --array=1-114
+#SBATCH --array=1-117
 
+set -euo pipefail
 module load 2025
-module load python
 
-source ~/miniforge3/etc/profile.d/conda.sh
-conda activate /home/alexroocroft/.conda/envs/env_symupy
+# Use the existing SymuVia Conda environment directly, without relying on
+# shell activation (which can silently leave the wrong python in PATH).
+PYTHON=/home/alexroocroft/.conda/envs/env_symupy/bin/python
+if [ ! -x "$PYTHON" ]; then
+    echo "[ERROR] Python not found or not executable: $PYTHON" >&2
+    exit 1
+fi
+"$PYTHON" -c 'import numpy; print("[INFO] NumPy", numpy.__version__)'
 
 # ----------------------------
-# Scheme dispatch logic
+# Scheme dispatch logic: 1–54 Sacrifice, 55–117 CollectiveGood.
+# CG tasks 115–117 map to local tasks 61–63 (case 20, repetitions 0–2).
+# Run only the extra WP4 experiment with: sbatch --array=115-117 <this file>
 # ----------------------------
 
 TASK_ID=${SLURM_ARRAY_TASK_ID}
@@ -33,10 +41,11 @@ fi
 echo "[INFO] Global task ID: $TASK_ID"
 echo "[INFO] Scheme: $SCHEME"
 echo "[INFO] Local task ID: $LOCAL_TASK_ID"
+echo "[INFO] Cycles: ${SR_NUM_CYCLES:-20}; route-day user detail from cycle: ${SR_ROUTE_DAY_DETAIL_START_CYCLE:-1}"
 
-python -u SocialRoutingSimulationFramework_Optimised.py \
-    $LOCAL_TASK_ID \
-    $SCHEME \
+"$PYTHON" -u SocialRoutingSimulationFramework_Optimised.py \
+    "$LOCAL_TASK_ID" \
+    "$SCHEME" \
     4 \
-    20
+    "${SR_NUM_CYCLES:-20}"
 

@@ -6,6 +6,10 @@ Created on 8th Novemeber 2023:
 author: Alex Roocroft
 
 NOTE: Make sure that the hard disk on the HPC has enough space to hold the data. Or the simulation will hang.
+
+Extended reporting: route_day_outputs/cycle_XX_summary.csv for every case/cycle
+and cycle_XX_users.csv.gz for every cycle (default starts at cycle 1).
+Route-day exports are OUTPUT ONLY; they do not enter participation decisions.
 """
 
 
@@ -100,6 +104,142 @@ def run_symuvia_simulation(iteration_cycle, input_data, parallel_cores, max_atte
     return results
 
 
+
+
+# =============================================================================
+# OBSERVATIONAL OUTPUTS: experienced travel time on UC- versus SR-route days
+# =============================================================================
+def save_route_day_outputs(
+    *, folder_outputs, scheme_type, case_id, case_label, rep_id,
+    iteration_cycle, select_social_start, select_social_end,
+    baseline_tt_seconds, total_experienced_tt_all, total_experienced_tt_sr,
+    count_sr_days, good_days_total, network_benefit_hours,
+    detail_start_cycle=1, save_user_details=True,
+):
+    """Save descriptive per-cycle UC/SR-day metrics for ANY experiment case.
+
+    This function ONLY reads already calculated outputs. Do not add these new
+    columns to df_input_cycle_mean: that is used by the AR(1) choice-model
+    update and changing it would risk changing the model's behaviour.
+
+    All travel-time outputs are in minutes. Only successfully processed days
+    contribute to the numerator and denominator. A route-day mean is NaN
+    when a user was not observed on that route type in the current cycle.
+    """
+    n = len(total_experienced_tt_all)
+    if good_days_total <= 0 or n == 0:
+        raise ValueError("[Route days] Expected positive user/day counts")
+    if detail_start_cycle < 1:
+        raise ValueError("[Route days] detail_start_cycle must be >= 1")
+
+    sr_count = np.asarray(count_sr_days, dtype=np.int64)
+    uc_count = good_days_total - sr_count
+    if sr_count.shape != (n,) or np.any(sr_count < 0) or np.any(uc_count < 0):
+        raise ValueError("[Route days] Invalid route-day counts")
+
+    start = np.fromiter((bool(select_social_start[u]) for u in range(n)),
+                        dtype=bool, count=n)
+    end = np.fromiter((bool(select_social_end[u]) for u in range(n)),
+                      dtype=bool, count=n)
+    if np.any((~start) & (sr_count != 0)):
+        raise ValueError("[Route days] Non-participant was assigned an SR route")
+
+    sum_all = np.asarray(total_experienced_tt_all, dtype=float)
+    sum_sr = np.asarray(total_experienced_tt_sr, dtype=float)
+    if sum_all.shape != (n,) or sum_sr.shape != (n,):
+        raise ValueError("[Route days] Unexpected array shapes")
+    if not np.isfinite(sum_all).all() or not np.isfinite(sum_sr).all():
+        raise ValueError("[Route days] Non-finite observed travel times")
+
+    sum_uc = sum_all - sum_sr
+    tt_all = sum_all / good_days_total
+    tt_sr = np.full(n, np.nan, dtype=float)
+    tt_uc = np.full(n, np.nan, dtype=float)
+    np.divide(sum_sr, sr_count, out=tt_sr, where=sr_count > 0)
+    np.divide(sum_uc, uc_count, out=tt_uc, where=uc_count > 0)
+
+    reconstructed = np.nan_to_num(tt_uc, nan=0.0) * uc_count + \
+                    np.nan_to_num(tt_sr, nan=0.0) * sr_count
+    if not np.allclose(reconstructed, sum_all, rtol=1e-12, atol=1e-7):
+        raise ValueError("[Route days] UC/SR decomposition failed its reconciliation test")
+    prior = np.asarray(baseline_tt_seconds, dtype=float) / 60.0
+    if prior.shape != (n,) or not np.isfinite(prior).all():
+        raise ValueError("[Route days] Invalid pre-scheme UC baseline")
+
+    add_all = tt_all - prior
+    add_uc = tt_uc - prior
+    add_sr = tt_sr - prior
+
+    def finite_mean(a):
+        a = np.asarray(a, dtype=float)
+        a = a[np.isfinite(a)]
+        return float(a.mean()) if len(a) else float('nan')
+
+    rows = []
+    for label, group in (("participant", start), ("nonparticipant", ~start)):
+        observed_uc = group & (uc_count > 0)
+        observed_sr = group & (sr_count > 0)
+        paired = observed_uc & observed_sr
+        diff = tt_sr[paired] - tt_uc[paired]
+        rows.append({
+            'scheme': scheme_type,
+            'case_id': case_id,
+            'case_label': case_label,
+            'rep_id': rep_id,
+            'cycle': iteration_cycle,
+            'group_start': label,
+            'n_users': int(group.sum()),
+            'n_valid_ucday_users': int(observed_uc.sum()),
+            'n_valid_srday_users': int(observed_sr.sum()),
+            'n_paired_users': int(paired.sum()),
+            'mean_prior_uc_tt_min': finite_mean(prior[group]),
+            'mean_ucday_tt_min': finite_mean(tt_uc[group]),
+            'mean_srday_tt_min': finite_mean(tt_sr[group]),
+            'mean_allday_tt_min': finite_mean(tt_all[group]),
+            'mean_ucday_additional_tt_min': finite_mean(add_uc[group]),
+            'mean_srday_additional_tt_min': finite_mean(add_sr[group]),
+            'mean_allday_additional_tt_min': finite_mean(add_all[group]),
+            'mean_paired_sr_minus_uc_min': finite_mean(diff),
+            'share_paired_sr_slower': float((diff > 0).mean()) if len(diff) else float('nan'),
+            'network_benefit_weekly_hours': float(network_benefit_hours),
+            'participation_rate_start': float(start.mean()),
+            'participation_rate_end': float(end.mean()),
+            'good_days_total': int(good_days_total),
+        })
+
+    route_dir = os.path.join(folder_outputs, 'route_day_outputs')
+    os.makedirs(route_dir, exist_ok=True)
+    summary_file = os.path.join(route_dir, f'cycle_{iteration_cycle:02d}_summary.csv')
+    pd.DataFrame(rows).to_csv(summary_file, index=False)
+
+    if save_user_details and iteration_cycle >= detail_start_cycle:
+        users = pd.DataFrame({
+            'scheme': scheme_type,
+            'case_id': case_id,
+            'case_label': case_label,
+            'rep_id': rep_id,
+            'cycle': iteration_cycle,
+            'user_id': np.arange(n),
+            'group_start': np.where(start, 'participant', 'nonparticipant'),
+            'group_end': np.where(end, 'participant', 'nonparticipant'),
+            'prior_uc_tt_min': prior,
+            'ucday_tt_min': tt_uc,
+            'srday_tt_min': tt_sr,
+            'allday_tt_min': tt_all,
+            'ucday_additional_tt_min': add_uc,
+            'srday_additional_tt_min': add_sr,
+            'allday_additional_tt_min': add_all,
+            'n_ucdays': uc_count,
+            'n_srdays': sr_count,
+            'n_good_days': good_days_total,
+        })
+        user_file = os.path.join(route_dir, f'cycle_{iteration_cycle:02d}_users.csv.gz')
+        users.to_csv(user_file, index=False, compression='gzip')
+
+    print(f'[Route days] {case_label} ({scheme_type}, rep={rep_id}) '
+          f'cycle={iteration_cycle}: summary' +
+          (' + users' if save_user_details and iteration_cycle >= detail_start_cycle else ''),
+          flush=True)
 
 def extract_simulation_output_updating(
     iteration_cycle,
@@ -289,7 +429,17 @@ def compute_choices_apply_decisions(
     lost_user,
     reconsideration_counter,
     reconsideration_length,
+    promise_evaluation="realised",
 ):
+    """Apply choice and withdrawal; the optional promise rule affects CG only.
+
+    realised: compare current cycle's observed travel time with the UC prior.
+    perceived_ar1: compare the existing AR(1)-smoothed perception with the UC prior.
+    Both rules use the same strict tolerance and permanent-loss mechanism.
+    """
+    if promise_evaluation not in {"realised", "perceived_ar1"}:
+        raise ValueError(f"Unknown promise_evaluation: {promise_evaluation}")
+
     # ----------------------------
     # Precompute arrays
     # ----------------------------
@@ -345,7 +495,16 @@ def compute_choices_apply_decisions(
     if scheme_type == "CollectiveGood":
         baseline_tt = travel_time_init["travel_time"].to_numpy() / 60.0
 
-        promise_tt = (df_input_nonweighted["experienced_tt_fulldays"].to_numpy() - baseline_tt) #does not use memory, it is the performance of this cycle only.
+        # Only the choice of travel-time evidence changes in the robustness case.
+        # df_input is the existing AR(1)-smoothed memory used for utility/choice;
+        # df_input_nonweighted is the observed mean of this simulation cycle.
+        promise_source = (
+            df_input if promise_evaluation == "perceived_ar1"
+            else df_input_nonweighted
+        )
+        promise_tt = (
+            promise_source["experienced_tt_fulldays"].to_numpy() - baseline_tt
+        )
 
         select_np = np.array(
             [select_social[u] for u in user_ids],
@@ -435,7 +594,7 @@ def run_simulation_framework(
         # ----------------- # ----------------- # ----------------- # -----------------
     no_sim = 0 # set to 1 to stop the simulation in SymuVia but keep the rest of the framework loop
 
-    parallel_cores=20 # standard for the paper simulation results
+    parallel_cores=20 # standard is 15 for the paper simulation results
 
     problem_day_limit = 0 # for the non-perfect week rerun logic
 
@@ -443,7 +602,7 @@ def run_simulation_framework(
 
     max_attempts = 5 # max number of attempts if there Symuvia returns a run error. Default is 5.
 
-    weeks_in_cycle = 3 # standard for the paper simulation results
+    weeks_in_cycle = 3 # standard is 3 for the paper simulation results
     days_in_week = 5 # each week has 5 days (i.e. work week)
 
 
@@ -511,6 +670,10 @@ def run_simulation_framework(
     cg_only_cases = [
         {"additional_time_rel_tol": 0.1, "_label": "cg_tol_0p1"},
         {"additional_time_rel_tol": 0.2, "_label": "cg_tol_0p2"},
+        # WP4: test whether CG promise credibility depends on evaluating the
+        # guarantee against the current cycle or AR(1)-smoothed perceptions.
+        # Identical baseline parameters/seeds to CollectiveGood case 00.
+        {"promise_evaluation": "perceived_ar1", "_label": "cg_promise_ar1"},
 
     ]
 
@@ -570,7 +733,8 @@ def run_simulation_framework(
     participation_rate1 = 20
     social_days_number = 2
     additional_time_rel_tol = 0
-    rho = 0.4 # AR(1) memory persistence parameter
+    promise_evaluation = "realised"  # CG promise evaluation; original rule by default
+    rho = 0.4 # AR(1) memory persistence parameter 
     profile_select = 0
     reconsideration_length = 2  # Set the number of cycles that reconsideration
 
@@ -598,7 +762,11 @@ def run_simulation_framework(
             reconsideration_length = value
         elif key == "additional_time_rel_tol":
             additional_time_rel_tol = value
+        elif key == "promise_evaluation":
+            promise_evaluation = value
 
+    if promise_evaluation not in {"realised", "perceived_ar1"}:
+        raise ValueError(f"Unknown promise evaluation mode: {promise_evaluation}")
 
     participation_rate = participation_rate1 / 100
 
@@ -612,6 +780,7 @@ def run_simulation_framework(
     print(f"Days of Commitment to SR: {social_days_number}")
     print(f"Reconsideration length: {reconsideration_length}")
     print(f"Rel tol. for CG schemes: {additional_time_rel_tol}")
+    print(f"CG promise evaluation: {promise_evaluation}; AR(1) rho: {rho}")
     print(f"Moral profile type: {moral_num}")
     print(f"Choice-model profile_select: {profile_select}")
     print(f"Non-participant estimate method: {non_participant_estimate}")
@@ -826,6 +995,9 @@ def run_simulation_framework(
                 "rep_id": rep_id,
                 "seed": seed,
                 "overrides": experiment_override,
+                "promise_evaluation": promise_evaluation,
+                "rho": rho,
+                "additional_time_rel_tol": additional_time_rel_tol,
             },
             f,
             indent=2,
@@ -1115,7 +1287,12 @@ def run_simulation_framework(
         # Record previous participation in df_input (memory_df_out)
         memory_df_out['in_scheme_before'] = [select_social[uid] for uid in memory_df_out.index]
 
-        df_out, participation_rate, select_social, lost_user = compute_choices_apply_decisions(memory_df_out, df_input_cycle_mean, user_choices, user_param_store, number_of_users, scheme_type, select_social, additional_time_rel_tol, travel_time_init, lost_user, reconsideration_counter,reconsideration_length)
+        df_out, participation_rate, select_social, lost_user = compute_choices_apply_decisions(
+            memory_df_out, df_input_cycle_mean, user_choices, user_param_store,
+            number_of_users, scheme_type, select_social, additional_time_rel_tol,
+            travel_time_init, lost_user, reconsideration_counter,
+            reconsideration_length, promise_evaluation=promise_evaluation,
+        )
 
         count_lost = sum(lost_user.values())
 
@@ -1126,6 +1303,28 @@ def run_simulation_framework(
         select_social_store[iteration_cycle] = select_social.copy()
         lost_user_count[iteration_cycle] = count_lost
         reconsideration_counter_store[iteration_cycle] = reconsideration_counter.copy()
+
+        # Additional reporting ONLY. Captures the participation status used
+        # for cycle-c traffic, not the post-cycle choice status. Uses observed
+        # successful days and does not modify choice inputs or RNG state.
+        save_route_day_outputs(
+            folder_outputs=folder_outputs,
+            scheme_type=scheme_type,
+            case_id=case_id,
+            case_label=case_label,
+            rep_id=rep_id,
+            iteration_cycle=iteration_cycle,
+            select_social_start=select_social_store[iteration_cycle - 1],
+            select_social_end=select_social_store[iteration_cycle],
+            baseline_tt_seconds=baseline_tt,
+            total_experienced_tt_all=total_experienced_tt_all,
+            total_experienced_tt_sr=total_experienced_tt_sr,
+            count_sr_days=count_sr_days,
+            good_days_total=good_days_total,
+            network_benefit_hours=Network_benefit_unscaled,
+            detail_start_cycle=int(os.environ.get('SR_ROUTE_DAY_DETAIL_START_CYCLE', '1')),
+            save_user_details=os.environ.get('SR_ROUTE_DAY_SAVE_USERS', '1') == '1',
+        )
 
         if scheme_type == "CollectiveGood" and iteration_cycle > 1:
             assert (
@@ -1148,8 +1347,9 @@ def run_simulation_framework(
         # Pull per-cycle user features (has 'SRdays_additional_time')
         df_cycle = df_input_cyclemean_storage[iteration_cycle]  # index: user_id
 
-        # Turn select_social dict for this cycle into an aligned Series
-        sel = np.array([select_social_store[iteration_cycle][u] for u in df_index])
+        # Use participation status at the START of this cycle,
+        # before the participation decisions are updated.
+        sel = np.array([select_social_store[iteration_cycle - 1][u] for u in df_index])
 
         add_time = df_np[:, df_cols.get_loc("SRdays_additional_time")]
 
