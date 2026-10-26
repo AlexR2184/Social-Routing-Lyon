@@ -65,8 +65,4 @@ Produces per-cycle, paired-differences, summary CSV and plots in
   ComputationalReq_sampling_sensitivity_strict/analysis_15cycles/
 (or analysis_20cycles/).
 
-## Limitations / things to verify on DelftBlue
-- The scripts have not been tested on a real SymuFlow HPC node here.
-- A separate Slurm job per array index/arm; cannot guarantee it fits in 14h.
-- CSV travel-time alignment requires unique origin/destination/departure keys.
-- Test a 15-day and a 30-day checkpoint before launching all 12 tasks.
+

@@ -38,6 +38,7 @@ sbatch run_analyse_fixed_rate_validation_130.sh
 ```
 
 Outputs go to `ComputationalReq_fixed_rate_validation_130/` in the local
-working directory and scratch. **Do not commit these generated outputs.**
+working directory and scratch.
+
 Review script settings and logs before treating results as validated; this
 source-only package does not include the experimental results.
