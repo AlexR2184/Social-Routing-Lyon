@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 
 
 # hard cutoff per day (seconds)
-MAX_DAY_SECONDS = 30 * 60  # tune this (e.g. 1700)
+MAX_DAY_SECONDS = 60 * 60  # tune this (e.g. 1700)
 
 
 # =========================================================
