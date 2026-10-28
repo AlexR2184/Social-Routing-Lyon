@@ -2,7 +2,7 @@
 
 This repository contains the code used to produce the results for the paper:
 
-**Long-term simulation of voluntary congestion management schemes: A modelling framework and application for large road networks**  
+**Long-term dynamics of voluntary congestion management on large networks: A cycle-to-cycle behavioural traffic simulation framework**  
 Alexander Roocroft, Baiba Pudane, Caspar Chorus, Ludovic Leclercq
 
 Publication details will be added when available.
