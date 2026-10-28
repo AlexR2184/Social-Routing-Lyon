@@ -522,8 +522,7 @@ If you use this code, please cite the associated paper:
 
 ```text
 Roocroft, A., Pudane, B., Chorus, C., and Leclercq, L. 
-Long-term simulation of voluntary congestion management schemes: 
-A modelling framework and application for large road networks. 
+Long-term dynamics of voluntary congestion management on large networks: A cycle-to-cycle behavioural traffic simulation framework.
 Publication details to be added.
 ```
 
